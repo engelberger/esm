@@ -147,14 +147,21 @@ class TriangularSelfAttentionBlock(nn.Module):
         pairwise_state = pairwise_state + self.col_drop(
             self.tri_mul_in(pairwise_state, mask=tri_mask)
         )
+        low_mem = dict(use_memory_efficient_kernel=True,
+                       chunk_size=chunk_size)
         pairwise_state = pairwise_state + self.row_drop(
-            self.tri_att_start(pairwise_state, mask=tri_mask, chunk_size=chunk_size)
+            self.tri_att_start(pairwise_state, mask=tri_mask, **low_mem)
         )
         pairwise_state = pairwise_state + self.col_drop(
-            self.tri_att_end(pairwise_state, mask=tri_mask, chunk_size=chunk_size)
+            self.tri_att_end(pairwise_state, mask=tri_mask, **low_mem)
         )
 
         # MLP over pairs.
-        pairwise_state = self.mlp_pair(pairwise_state)
+        # pairwise_state = self.mlp_pair(pairwise_state)
+
+        # save memory
+        self.mlp_pair.half()
+        pairwise_state = self.mlp_pair(pairwise_state.half())
+        pairwise_state = pairwise_state.to(sequence_state.dtype)
 
         return sequence_state, pairwise_state
