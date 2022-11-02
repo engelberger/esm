@@ -154,7 +154,14 @@ class FoldingTrunk(nn.Module):
         # where the chunk_size is the size of the chunks, so 128 would mean to parse 128-lengthed chunks.
         self.chunk_size = chunk_size
 
-    def forward(self, seq_feats, pair_feats, true_aa, residx, mask, no_recycles: T.Optional[int] = None):
+    def forward(self, get_lm_feats,
+        true_aa,
+        residx,
+        mask,
+        no_recycles: T.Optional[int] = None,
+        mask_rate: float = 0.0,
+        ):
+        
         """
         Inputs:
           seq_feats:     B x L x C            tensor of sequence features
@@ -166,9 +173,7 @@ class FoldingTrunk(nn.Module):
           predicted_structure: B x L x (num_atoms_per_residue * 3) tensor wrapped in a Coordinates object
         """
 
-        device = seq_feats.device
-        s_s_0 = seq_feats
-        s_z_0 = pair_feats
+        device = true_aa.device
 
         if no_recycles is None:
             no_recycles = self.cfg.max_recycles
@@ -183,21 +188,27 @@ class FoldingTrunk(nn.Module):
                 s, z = block(s, z, mask=mask, residue_index=residx, chunk_size=self.chunk_size)
             return s, z
 
-        s_s = s_s_0
-        s_z = s_z_0
+        seq_feat, pair_feat, lm_output = get_lm_feats(true_aa, mask_rate=mask_rate)
+        s_s = seq_feat
+        s_z = pair_feat
         recycle_s = torch.zeros_like(s_s)
         recycle_z = torch.zeros_like(s_z)
         recycle_bins = torch.zeros(*s_z.shape[:-1], device=device, dtype=torch.int64)
 
         assert no_recycles > 0
         for recycle_idx in range(no_recycles):
+            
             with ExitStack() if recycle_idx == no_recycles - 1 else torch.no_grad():
+                
+                # === updated LM features ===
+                if recycle_idx > 0 and mask_rate > 0:
+                  seq_feat, pair_feat, lm_output = get_lm_feats(true_aa, mask_rate=mask_rate)
+
                 # === Recycling ===
                 recycle_s = self.recycle_s_norm(recycle_s.detach())
                 recycle_z = self.recycle_z_norm(recycle_z.detach())
                 recycle_z += self.recycle_disto(recycle_bins.detach())
-
-                s_s, s_z = trunk_iter(s_s_0 + recycle_s, s_z_0 + recycle_z, residx, mask)
+                s_s, s_z = trunk_iter(seq_feat + recycle_s, pair_feat + recycle_z, residx, mask)
 
                 # === Structure module ===
                 structure = self.structure_module(
@@ -219,6 +230,7 @@ class FoldingTrunk(nn.Module):
         assert isinstance(structure, dict)  # type: ignore
         structure["s_s"] = s_s
         structure["s_z"] = s_z
+        structure["lm_output"] = lm_output
 
         return structure
 

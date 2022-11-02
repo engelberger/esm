@@ -92,8 +92,9 @@ class ESMFold(nn.Module):
         aa = (aa + 1).masked_fill(mask != 1, 0)
         return self.af2_to_esm[aa]
 
-    def _compute_language_model_representations(
-        self, esmaa: torch.Tensor
+    def _compute_language_model_representations(self,
+        esmaa: torch.Tensor,
+        return_contacts: bool = False
     ) -> torch.Tensor:
         """Adds bos/eos tokens for the language model, since the structure module doesn't use these."""
         batch_size = esmaa.size(0)
@@ -109,12 +110,13 @@ class ESMFold(nn.Module):
             esmaa,
             repr_layers=range(self.esm.num_layers + 1),
             need_head_weights=False,
+            return_contacts=return_contacts
         )
         esm_s = torch.stack(
             [v for _, v in sorted(res["representations"].items())], dim=2
         )
         esm_s = esm_s[:, 1:-1]  # B, L, nLayers, C
-        return esm_s
+        return esm_s, res
 
     def _mask_inputs_to_esm(self, esmaa, pattern):
         new_esmaa = esmaa.clone()
@@ -128,6 +130,7 @@ class ESMFold(nn.Module):
         residx: T.Optional[torch.Tensor] = None,
         masking_pattern: T.Optional[torch.Tensor] = None,
         num_recycles: T.Optional[int] = None,
+        mask_rate: float = 0.0,
     ):
         """Runs a forward pass given input tokens. Use `model.infer` to
         run inference from a sequence.
@@ -155,30 +158,36 @@ class ESMFold(nn.Module):
             residx = torch.arange(L, device=device).expand_as(aa)
 
         # === ESM ===
-        esmaa = self._af2_idx_to_esm_idx(aa, mask)
+        def get_lm_feats(aa, mask_rate):
+            
+            esmaa = self._af2_idx_to_esm_idx(aa, mask)
+            random_mask = torch.rand(aa.shape, device=device) < mask_rate
+            if masking_pattern is not None:
+                random_mask = random_mask * masking_pattern
+            
+            esmaa = self._mask_inputs_to_esm(esmaa, random_mask)
+            esm_s, lm_output = self._compute_language_model_representations(esmaa)
 
-        if masking_pattern is not None:
-            esmaa = self._mask_inputs_to_esm(esmaa, masking_pattern)
+            # Convert esm_s to the precision used by the trunk and
+            # the structure module. These tensors may be a lower precision if, for example,
+            # we're running the language model in fp16 precision.
+            esm_s = esm_s.to(self.esm_s_combine.dtype)
+            esm_s = esm_s.detach()
 
-        esm_s = self._compute_language_model_representations(esmaa)
+            # === preprocessing ===
+            esm_s = (self.esm_s_combine.softmax(0).unsqueeze(0) @ esm_s).squeeze(2)
+            s_s_0 = self.esm_s_mlp(esm_s)
+            s_z_0 = s_s_0.new_zeros(B, L, L, self.cfg.trunk.pairwise_state_dim)
+            s_s_0 += self.embedding(aa)
 
-        # Convert esm_s to the precision used by the trunk and
-        # the structure module. These tensors may be a lower precision if, for example,
-        # we're running the language model in fp16 precision.
-        esm_s = esm_s.to(self.esm_s_combine.dtype)
-
-        esm_s = esm_s.detach()
-
-        # === preprocessing ===
-        esm_s = (self.esm_s_combine.softmax(0).unsqueeze(0) @ esm_s).squeeze(2)
-
-        s_s_0 = self.esm_s_mlp(esm_s)
-        s_z_0 = s_s_0.new_zeros(B, L, L, self.cfg.trunk.pairwise_state_dim)
-
-        s_s_0 += self.embedding(aa)
+            # seq_feat, pair_feat
+            return s_s_0, s_z_0, lm_output
 
         structure: dict = self.trunk(
-            s_s_0, s_z_0, aa, residx, mask, no_recycles=num_recycles
+            get_lm_feats,
+            aa, residx, mask,
+            no_recycles=num_recycles,
+            mask_rate=mask_rate,
         )
         # Documenting what we expect:
         structure = {
@@ -194,6 +203,7 @@ class ESMFold(nn.Module):
                 "angles",
                 "positions",
                 "states",
+                "lm_output"
             ]
         }
 
@@ -246,6 +256,7 @@ class ESMFold(nn.Module):
         num_recycles: T.Optional[int] = None,
         residue_index_offset: T.Optional[int] = 512,
         chain_linker: T.Optional[str] = "G" * 25,
+        mask_rate: float = 0.0
     ):
         """Runs a forward pass given input sequences.
 
@@ -285,6 +296,7 @@ class ESMFold(nn.Module):
             residx=residx,
             masking_pattern=masking_pattern,
             num_recycles=num_recycles,
+            mask_rate=mask_rate
         )
 
         output["atom37_atom_exists"] = output[
