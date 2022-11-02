@@ -160,6 +160,7 @@ class FoldingTrunk(nn.Module):
         mask,
         no_recycles: T.Optional[int] = None,
         mask_rate: float = 0.0,
+        tied_attention: bool = False
         ):
         
         """
@@ -182,13 +183,17 @@ class FoldingTrunk(nn.Module):
             no_recycles += 1  # First 'recycle' is just the standard forward pass through the model.
 
         def trunk_iter(s, z, residx, mask):
-            z = z + self.pairwise_positional_embedding(residx, mask=mask)
-
+            pos_emb = self.pairwise_positional_embedding(residx, mask=mask)
+            if tied_attention:
+                pos_emb = pos_emb.mean(0,keepdims=True)
+            z = z + pos_emb
             for block in self.blocks:
-                s, z = block(s, z, mask=mask, residue_index=residx, chunk_size=self.chunk_size)
+                s, z = block(s, z, mask=mask, residue_index=residx,
+                    chunk_size=self.chunk_size, tied_attention=tied_attention)
             return s, z
 
         seq_feat, pair_feat, lm_output = get_lm_feats(true_aa, mask_rate=mask_rate)
+        if tied_attention: pair_feat = pair_feat.mean(0,keepdims=True)
         s_s = seq_feat
         s_z = pair_feat
         recycle_s = torch.zeros_like(s_s)
@@ -203,6 +208,7 @@ class FoldingTrunk(nn.Module):
                 # === updated LM features ===
                 if recycle_idx > 0 and mask_rate > 0:
                   seq_feat, pair_feat, lm_output = get_lm_feats(true_aa, mask_rate=mask_rate)
+                  if tied_attention: pair_feat = pair_feat.mean(0,keepdims=True)
 
                 # === Recycling ===
                 recycle_s = self.recycle_s_norm(recycle_s.detach())
@@ -211,11 +217,18 @@ class FoldingTrunk(nn.Module):
                 s_s, s_z = trunk_iter(seq_feat + recycle_s, pair_feat + recycle_z, residx, mask)
 
                 # === Structure module ===
-                structure = self.structure_module(
-                    {"single": self.trunk2sm_s(s_s), "pair": self.trunk2sm_z(s_z)},
-                    true_aa,
-                    mask.float(),
-                )
+                if tied_attention:
+                    structure = self.structure_module(
+                        {"single": self.trunk2sm_s(s_s[:1]), "pair": self.trunk2sm_z(s_z)},
+                        true_aa[:1],
+                        mask[:1].float(),
+                    )
+                else:
+                    structure = self.structure_module(
+                        {"single": self.trunk2sm_s(s_s), "pair": self.trunk2sm_z(s_z)},
+                        true_aa,
+                        mask.float(),
+                    )
 
                 recycle_s = s_s
                 recycle_z = s_z

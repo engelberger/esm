@@ -103,7 +103,8 @@ class TriangularSelfAttentionBlock(nn.Module):
         torch.nn.init.zeros_(self.mlp_pair.mlp[-2].weight)
         torch.nn.init.zeros_(self.mlp_pair.mlp[-2].bias)
 
-    def forward(self, sequence_state, pairwise_state, mask=None, chunk_size=None, **__kwargs):
+    def forward(self, sequence_state, pairwise_state, mask=None,
+        chunk_size=None, tied_attention=False, **__kwargs):
         """
         Inputs:
           sequence_state: B x L x sequence_state_dim
@@ -123,7 +124,7 @@ class TriangularSelfAttentionBlock(nn.Module):
         pairwise_state_dim = pairwise_state.shape[3]
         assert sequence_state_dim == self.sequence_state_dim
         assert pairwise_state_dim == self.pairwise_state_dim
-        assert batch_dim == pairwise_state.shape[0]
+        # assert batch_dim == pairwise_state.shape[0]
         assert seq_dim == pairwise_state.shape[1]
         assert seq_dim == pairwise_state.shape[2]
 
@@ -137,7 +138,13 @@ class TriangularSelfAttentionBlock(nn.Module):
         sequence_state = self.mlp_seq(sequence_state)
 
         # Update pairwise state
-        pairwise_state = pairwise_state + self.sequence_to_pair(sequence_state)
+        pairwise_new_state = self.sequence_to_pair(sequence_state)
+        if tied_attention:
+            pairwise_state = pairwise_state + pairwise_new_state.mean(0,keepdims=True)
+            if mask is not None:
+                mask = mask.mean(0,keepdims=True)
+        else:
+            pairwise_state = pairwise_state + pairwise_new_state
 
         # Axial attention with triangular bias.
         tri_mask = mask.unsqueeze(2) * mask.unsqueeze(1) if mask is not None else None
@@ -157,8 +164,6 @@ class TriangularSelfAttentionBlock(nn.Module):
         )
 
         # MLP over pairs.
-        # pairwise_state = self.mlp_pair(pairwise_state)
-
         # save memory
         self.mlp_pair.half()
         pairwise_state = self.mlp_pair(pairwise_state.half())
