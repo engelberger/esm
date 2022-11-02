@@ -256,7 +256,8 @@ class ESMFold(nn.Module):
         num_recycles: T.Optional[int] = None,
         residue_index_offset: T.Optional[int] = 512,
         chain_linker: T.Optional[str] = "G" * 25,
-        mask_rate: float = 0.0
+        mask_rate: float = 0.0,
+        return_contacts: bool = False
     ):
         """Runs a forward pass given input sequences.
 
@@ -296,7 +297,8 @@ class ESMFold(nn.Module):
             residx=residx,
             masking_pattern=masking_pattern,
             num_recycles=num_recycles,
-            mask_rate=mask_rate
+            mask_rate=mask_rate,
+            return_contacts=return_contacts
         )
 
         output["atom37_atom_exists"] = output[
