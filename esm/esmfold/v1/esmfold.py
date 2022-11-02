@@ -131,6 +131,7 @@ class ESMFold(nn.Module):
         masking_pattern: T.Optional[torch.Tensor] = None,
         num_recycles: T.Optional[int] = None,
         mask_rate: float = 0.0,
+        return_contacts: bool = False
     ):
         """Runs a forward pass given input tokens. Use `model.infer` to
         run inference from a sequence.
@@ -166,7 +167,7 @@ class ESMFold(nn.Module):
                 random_mask = random_mask * masking_pattern
             
             esmaa = self._mask_inputs_to_esm(esmaa, random_mask)
-            esm_s, lm_output = self._compute_language_model_representations(esmaa)
+            esm_s, lm_output = self._compute_language_model_representations(esmaa, return_contacts=return_contacts)
 
             # Convert esm_s to the precision used by the trunk and
             # the structure module. These tensors may be a lower precision if, for example,
