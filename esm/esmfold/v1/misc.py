@@ -95,7 +95,8 @@ def output_to_pdb(output: T.Dict) -> T.List[str]:
     # atom14_to_atom37 must be called first, as it fails on latest numpy if the
     # input is a numpy array. It will work if the input is a torch tensor.
     final_atom_positions = atom14_to_atom37(output["positions"][-1], output)
-    output = {k: v.to("cpu").numpy() for k, v in output.items()}
+    ks = ["atom37_atom_exists", "aatype", "residue_index", "plddt", "chain_index"]
+    output = {k: output[k].to("cpu").numpy() for k in ks}
     final_atom_positions = final_atom_positions.cpu().numpy()
     final_atom_mask = output["atom37_atom_exists"]
     pdbs = []
