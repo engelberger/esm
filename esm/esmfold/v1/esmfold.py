@@ -131,7 +131,8 @@ class ESMFold(nn.Module):
         masking_pattern: T.Optional[torch.Tensor] = None,
         num_recycles: T.Optional[int] = None,
         mask_rate: float = 0.0,
-        return_contacts: bool = False
+        return_contacts: bool = False,
+        tied_attention: bool = False
     ):
         """Runs a forward pass given input tokens. Use `model.infer` to
         run inference from a sequence.
@@ -189,6 +190,7 @@ class ESMFold(nn.Module):
             aa, residx, mask,
             no_recycles=num_recycles,
             mask_rate=mask_rate,
+            tied_attention=tied_attention
         )
         # Documenting what we expect:
         structure = {
@@ -208,13 +210,18 @@ class ESMFold(nn.Module):
             ]
         }
 
+        if tied_attention:
+          B = 1
+          aa = aa[:1]
+          residx = residx[:1]
+          mask = mask[:1]
+
         disto_logits = self.distogram_head(structure["s_z"])
         disto_logits = (disto_logits + disto_logits.transpose(1, 2)) / 2
         structure["distogram_logits"] = disto_logits
 
         lm_logits = self.lm_head(structure["s_s"])
         structure["lm_logits"] = lm_logits
-
         structure["aatype"] = aa
         make_atom14_masks(structure)
 

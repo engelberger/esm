@@ -142,7 +142,7 @@ class TriangularSelfAttentionBlock(nn.Module):
         if tied_attention:
             pairwise_state = pairwise_state + pairwise_new_state.mean(0,keepdims=True)
             if mask is not None:
-                mask = mask.mean(0,keepdims=True)
+                mask = mask[:1]
         else:
             pairwise_state = pairwise_state + pairwise_new_state
 
