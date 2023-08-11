@@ -24,7 +24,8 @@ from esm.esmfold.v1.misc import (
     output_to_pdb,
 
 )
-import logging
+from loguru import logger
+
 
 
 
@@ -200,40 +201,39 @@ class ESMFold(nn.Module):
         def get_lm_feats(aa, mask_rate):
             
             # Configure logs
-            logging.basicConfig(filename='logfile.log', level=logging.INFO)
-        
+            logger.add("logfile.log")
+
             esmaa = self._af2_idx_to_esm_idx(aa, mask)
             random_mask = torch.rand(aa.shape, device=device) < mask_rate
             if masking_pattern is not None:
                 random_mask = random_mask * masking_pattern
-            logging.info('Random mask applied: %s', str(random_mask))
+            logger.info('Random mask applied: %{}'.format(str(random_mask)))
 
             if mask_position is not None:
                 esmaa = self._mask_single_position(esmaa, mask_position)
-                logging.info('Masked single position: %s', str(esmaa))
+                logger.info('Masked single position: {}'.format(str(esmaa)))
             elif mask_list is not None:
                 esmaa = self._mask_list_of_positions(esmaa, mask_list)
-                logging.info('Masked list of positions: %s', str(esmaa))
+                logger.info('Masked list of positions: {}'.format(str(esmaa)))
             else:
                 esmaa = self._mask_inputs_to_esm(esmaa, random_mask)
-                logging.info('Masked inputs: %s', str(esmaa))
-                
+                logger.info('Masked inputs: {}'.format(str(esmaa)))
+
             esm_s, lm_output = self._compute_language_model_representations(esmaa, return_contacts=return_contacts)
-            logging.info('Computed language model representations: %s', str(esm_s))
+            logger.info('Computed language model representations: {}'.format(str(esm_s)))
 
             # Convert esm_s to the precision used by the trunk and
-            # the structure module. These tensors may be a lower precision if, for example,
-            # we're running the language model in fp16 precision.
+            # the structure module. These tensors may be at a lower precision.
             esm_s = esm_s.to(self.esm_s_combine.dtype)
             esm_s = esm_s.detach()
 
-            # === preprocessing ===
+            # === Preprocessing ===
             esm_s = (self.esm_s_combine.softmax(0).unsqueeze(0) @ esm_s).squeeze(2)
             s_s_0 = self.esm_s_mlp(esm_s)
             s_z_0 = s_s_0.new_zeros(B, L, L, self.cfg.trunk.pairwise_state_dim)
             s_s_0 += self.embedding(aa)
 
-            # seq_feat, pair_feat
+            # Seq_feat, pair_feat
             return s_s_0, s_z_0, lm_output
 
         structure: dict = self.trunk(
