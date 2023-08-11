@@ -196,10 +196,10 @@ class ESMFold(nn.Module):
 
         if residx is None:
             residx = torch.arange(L, device=device).expand_as(aa)
-
+        print(f"Level 0 mask_position = {mask_position}")
         # === ESM ===
-        def get_lm_feats(aa, mask_rate):
-            
+        def get_lm_feats(aa, mask_rate, mask_position):
+            print(f"Level 0 mask_position = {mask_position}")
             # Configure logs
             logger.add("logfile.log")
             masking_pattern = None # temp, to check if it is working correctly
