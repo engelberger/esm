@@ -207,20 +207,20 @@ class ESMFold(nn.Module):
             random_mask = torch.rand(aa.shape, device=device) < mask_rate
             if masking_pattern is not None:
                 random_mask = random_mask * masking_pattern
-            logger.info('Random mask applied: %{}'.format(str(random_mask)))
+            #logger.info('Random mask applied: %{}'.format(str(random_mask)))
 
             if mask_position is not None:
                 esmaa = self._mask_single_position(esmaa, mask_position)
                 logger.info('Masked single position: {}'.format(str(esmaa)))
             elif mask_list is not None:
                 esmaa = self._mask_list_of_positions(esmaa, mask_list)
-                logger.info('Masked list of positions: {}'.format(str(esmaa)))
+                #logger.info('Masked list of positions: {}'.format(str(esmaa)))
             else:
                 esmaa = self._mask_inputs_to_esm(esmaa, random_mask)
                 logger.info('Masked inputs: {}'.format(str(esmaa)))
 
             esm_s, lm_output = self._compute_language_model_representations(esmaa, return_contacts=return_contacts)
-            logger.info('Computed language model representations: {}'.format(str(esm_s)))
+            #logger.info('Computed language model representations: {}'.format(str(esm_s)))
 
             # Convert esm_s to the precision used by the trunk and
             # the structure module. These tensors may be at a lower precision.
