@@ -123,6 +123,39 @@ class ESMFold(nn.Module):
         new_esmaa[pattern == 1] = self.esm_dict.mask_idx
         return new_esmaa
 
+    def _mask_single_position(self, esmaa, position_to_mask):
+        """
+        Masks a specific position in all sequences of a batch.
+        
+        Args:
+            esmaa (torch.Tensor): Tensor containing indices corresponding to amino acids.
+            position_to_mask (int): The index of the position to be masked in all sequences.
+            
+        Returns:
+            new_esmaa (torch.Tensor): The modified tensor with the specific position masked in all sequences.
+        """
+        new_esmaa = esmaa.clone()
+        new_esmaa[:, position_to_mask] = self.esm_dict.mask_idx
+        return new_esmaa
+
+
+    def _mask_list_of_positions(self, esmaa, positions_to_mask):
+        """
+        Masks specific positions in each sequence of a batch.
+        
+        Args:
+            esmaa (torch.Tensor): Tensor containing indices corresponding to amino acids.
+            positions_to_mask (list of int): List of positions to be masked in each sequence. 
+                                            The length of the list should be equal to the batch size.
+            
+        Returns:
+            new_esmaa (torch.Tensor): The modified tensor with specific positions masked in each sequence.
+        """
+        new_esmaa = esmaa.clone()
+        for i, pos in enumerate(positions_to_mask):
+            new_esmaa[i, pos] = self.esm_dict.mask_idx
+        return new_esmaa
+
     def forward(
         self,
         aa: torch.Tensor,
@@ -131,6 +164,8 @@ class ESMFold(nn.Module):
         masking_pattern: T.Optional[torch.Tensor] = None,
         num_recycles: T.Optional[int] = None,
         mask_rate: float = 0.0,
+        mask_position: int = None,
+        mask_list: ins = None,
         return_contacts: bool = False
     ):
         """Runs a forward pass given input tokens. Use `model.infer` to
@@ -160,14 +195,27 @@ class ESMFold(nn.Module):
 
         # === ESM ===
         def get_lm_feats(aa, mask_rate):
-            
+            # Configure logs
+            logging.basicConfig(filename='logfile.log', level=logging.INFO)
+        
             esmaa = self._af2_idx_to_esm_idx(aa, mask)
             random_mask = torch.rand(aa.shape, device=device) < mask_rate
             if masking_pattern is not None:
                 random_mask = random_mask * masking_pattern
-            
-            esmaa = self._mask_inputs_to_esm(esmaa, random_mask)
+            logging.info('Random mask applied: %s', str(random_mask))
+
+            if mask_position is not None:
+                esmaa = self._mask_single_position(esmaa, mask_position)
+                logging.info('Masked single position: %s', str(esmaa))
+            elif mask_list is not None:
+                esmaa = self._mask_list_of_positions(esmaa, mask_list)
+                logging.info('Masked list of positions: %s', str(esmaa))
+            else:
+                esmaa = self._mask_inputs_to_esm(esmaa, random_mask)
+                logging.info('Masked inputs: %s', str(esmaa))
+                
             esm_s, lm_output = self._compute_language_model_representations(esmaa, return_contacts=return_contacts)
+            logging.info('Computed language model representations: %s', str(esm_s))
 
             # Convert esm_s to the precision used by the trunk and
             # the structure module. These tensors may be a lower precision if, for example,
@@ -258,6 +306,8 @@ class ESMFold(nn.Module):
         residue_index_offset: T.Optional[int] = 512,
         chain_linker: T.Optional[str] = "G" * 25,
         mask_rate: float = 0.0,
+        mask_position: int = None,
+        mask_list: ins = None,
         return_contacts: bool = False
     ):
         """Runs a forward pass given input sequences.
