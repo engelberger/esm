@@ -195,6 +195,7 @@ class ESMFold(nn.Module):
 
         # === ESM ===
         def get_lm_feats(aa, mask_rate):
+            import logging
             # Configure logs
             logging.basicConfig(filename='logfile.log', level=logging.INFO)
         
