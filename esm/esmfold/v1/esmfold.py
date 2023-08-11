@@ -83,7 +83,6 @@ class ESMFold(nn.Module):
             nn.Linear(cfg.lddt_head_hid_dim, cfg.lddt_head_hid_dim),
             nn.Linear(cfg.lddt_head_hid_dim, 37 * self.lddt_bins),
         )
-
     @staticmethod
     def _af2_to_esm(d: Alphabet):
         # Remember that t is shifted from residue_constants by 1 (0 is padding).
@@ -199,7 +198,7 @@ class ESMFold(nn.Module):
         print(f"Level 0 mask_position = {mask_position}")
         # === ESM ===
         def get_lm_feats(aa, mask_rate, mask_position):
-            print(f"Level 0 mask_position = {mask_position}")
+            print(f"Level 1 mask_position = {mask_position}")
             # Configure logs
             logger.add("logfile.log")
             masking_pattern = None # temp, to check if it is working correctly
@@ -353,7 +352,8 @@ class ESMFold(nn.Module):
             masking_pattern=masking_pattern,
             num_recycles=num_recycles,
             mask_rate=mask_rate,
-            return_contacts=return_contacts
+            return_contacts=return_contacts,
+            mask_position = mask_position
         )
 
         output["atom37_atom_exists"] = output[
