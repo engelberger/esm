@@ -202,7 +202,7 @@ class ESMFold(nn.Module):
             
             # Configure logs
             logger.add("logfile.log")
-
+            masking_pattern = None # temp, to check if it is working correctly
             esmaa = self._af2_idx_to_esm_idx(aa, mask)
             random_mask = torch.rand(aa.shape, device=device) < mask_rate
             if masking_pattern is not None:
