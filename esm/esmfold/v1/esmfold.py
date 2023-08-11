@@ -165,7 +165,7 @@ class ESMFold(nn.Module):
         num_recycles: T.Optional[int] = None,
         mask_rate: float = 0.0,
         mask_position: int = None,
-        mask_list: ins = None,
+        mask_list: int = None,
         return_contacts: bool = False
     ):
         """Runs a forward pass given input tokens. Use `model.infer` to
