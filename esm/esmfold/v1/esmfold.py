@@ -22,7 +22,10 @@ from esm.esmfold.v1.misc import (
     batch_encode_sequences,
     collate_dense_tensors,
     output_to_pdb,
+
 )
+import logging
+
 
 
 @dataclass
@@ -195,7 +198,7 @@ class ESMFold(nn.Module):
 
         # === ESM ===
         def get_lm_feats(aa, mask_rate):
-            import logging
+            
             # Configure logs
             logging.basicConfig(filename='logfile.log', level=logging.INFO)
         
