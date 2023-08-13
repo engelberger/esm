@@ -96,8 +96,9 @@ class ESMFold(nn.Module):
         return self.af2_to_esm[aa]
 
     def _compute_language_model_representations(self,
-        esmaa: torch.Tensor,
-        return_contacts: bool = False
+    esmaa: torch.Tensor,
+    mask_position: torch.Tensor = None,
+    return_contacts: bool = False
     ) -> torch.Tensor:
         """Adds bos/eos tokens for the language model, since the structure module doesn't use these."""
         batch_size = esmaa.size(0)
@@ -138,7 +139,9 @@ class ESMFold(nn.Module):
             new_esmaa (torch.Tensor): The modified tensor with the specific position masked in all sequences.
         """
         new_esmaa = esmaa.clone()
+        print("Tensor before masking at position {}: \n{}".format(position_to_mask, new_esmaa))
         new_esmaa[:, position_to_mask] = self.esm_dict.mask_idx
+        print("Tensor after masking at position {}: \n{}".format(position_to_mask, new_esmaa))
         return new_esmaa
 
 
@@ -197,7 +200,7 @@ class ESMFold(nn.Module):
             residx = torch.arange(L, device=device).expand_as(aa)
         print(f"Level 0 mask_position = {mask_position}")
         # === ESM ===
-        def get_lm_feats(aa, mask_rate, mask_position=None):
+        def get_lm_feats(aa, mask_rate, mask_position):
             print(f"Level 1 mask_position = {mask_position}")
             # Configure logs
             logger.add("logfile.log")
@@ -209,8 +212,9 @@ class ESMFold(nn.Module):
             #logger.info('Random mask applied: %{}'.format(str(random_mask)))
 
             if mask_position is not None:
+                
                 esmaa = self._mask_single_position(esmaa, mask_position)
-                logger.info('Masked single position: {}'.format(str(esmaa)))
+                #logger.info('Masked single position: {}'.format(str(esmaa)))
             elif mask_list is not None:
                 esmaa = self._mask_list_of_positions(esmaa, mask_list)
                 #logger.info('Masked list of positions: {}'.format(str(esmaa)))
@@ -218,7 +222,7 @@ class ESMFold(nn.Module):
                 esmaa = self._mask_inputs_to_esm(esmaa, random_mask)
                 logger.info('Masked inputs: {}'.format(str(esmaa)))
 
-            esm_s, lm_output = self._compute_language_model_representations(esmaa, return_contacts=return_contacts)
+            esm_s, lm_output = self._compute_language_model_representations(esmaa, mask_position, return_contacts=return_contacts)
             #logger.info('Computed language model representations: {}'.format(str(esm_s)))
 
             # Convert esm_s to the precision used by the trunk and
@@ -240,6 +244,7 @@ class ESMFold(nn.Module):
             aa, residx, mask,
             no_recycles=num_recycles,
             mask_rate=mask_rate,
+            mask_position=mask_position
         )
         # Documenting what we expect:
         structure = {
@@ -345,6 +350,7 @@ class ESMFold(nn.Module):
             lambda x: x.to(self.device), (aatype, mask, residx, linker_mask)
         )
 
+        # Corrected forward function which now includes mask_position
         output = self.forward(
             aatype,
             mask=mask,
@@ -352,8 +358,8 @@ class ESMFold(nn.Module):
             masking_pattern=masking_pattern,
             num_recycles=num_recycles,
             mask_rate=mask_rate,
+            mask_position=mask_position,  # Added line
             return_contacts=return_contacts,
-            mask_position = mask_position
         )
 
         output["atom37_atom_exists"] = output[

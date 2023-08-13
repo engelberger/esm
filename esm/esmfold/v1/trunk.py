@@ -189,7 +189,7 @@ class FoldingTrunk(nn.Module):
                 s, z = block(s, z, mask=mask, residue_index=residx, chunk_size=self.chunk_size)
             return s, z
 
-        seq_feat, pair_feat, lm_output = get_lm_feats(true_aa,mask_position=mask_position, mask_rate=mask_rate )  # FE First Masking
+        seq_feat, pair_feat, lm_output = get_lm_feats(true_aa, mask_position=mask_position, mask_rate=mask_rate)  # FE First Masking
         s_s = seq_feat
         s_z = pair_feat
         recycle_s = torch.zeros_like(s_s)
@@ -202,8 +202,10 @@ class FoldingTrunk(nn.Module):
             with ExitStack() if recycle_idx == no_recycles - 1 else torch.no_grad():
                 
                 # === updated LM features ===
-                if recycle_idx > 0 and mask_rate > 0:
-                  seq_feat, pair_feat, lm_output = get_lm_feats(true_aa, mask_rate=mask_rate, mask_position=mask_position)  # FE Second Masking
+                if recycle_idx > 0 and mask_position is not None:
+                  print(f"Level 2 Mask_position = {mask_position}")
+                  seq_feat, pair_feat, lm_output = get_lm_feats(true_aa, mask_position=mask_position, mask_rate=mask_rate)  # FE Second Masking
+
 
                 # === Recycling ===
                 recycle_s = self.recycle_s_norm(recycle_s.detach())
