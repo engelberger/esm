@@ -240,6 +240,7 @@ class ESMFold(nn.Module):
             aa, residx, mask,
             no_recycles=num_recycles,
             mask_rate=mask_rate,
+            mask_position=mask_position
         )
         # Documenting what we expect:
         structure = {
