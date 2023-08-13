@@ -197,7 +197,7 @@ class ESMFold(nn.Module):
             residx = torch.arange(L, device=device).expand_as(aa)
         print(f"Level 0 mask_position = {mask_position}")
         # === ESM ===
-        def get_lm_feats(aa, mask_rate, mask_position):
+        def get_lm_feats(aa, mask_rate, mask_position=None):
             print(f"Level 1 mask_position = {mask_position}")
             # Configure logs
             logger.add("logfile.log")
@@ -240,7 +240,6 @@ class ESMFold(nn.Module):
             aa, residx, mask,
             no_recycles=num_recycles,
             mask_rate=mask_rate,
-            mask_position=mask_position
         )
         # Documenting what we expect:
         structure = {
