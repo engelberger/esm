@@ -138,7 +138,7 @@ class ESMFold(nn.Module):
         residx: T.Optional[torch.Tensor] = None,
         masking_pattern: T.Optional[torch.Tensor] = None,
         num_recycles: T.Optional[int] = None,
-        mask_rate: float = 0.0,
+        mask_rate: float = 0.0, # consider removing in the future
         return_contacts: bool = False
     ):
         """Runs a forward pass given input tokens. Use `model.infer` to
@@ -167,14 +167,15 @@ class ESMFold(nn.Module):
             residx = torch.arange(L, device=device).expand_as(aa)
 
         # === ESM ===
-        def get_lm_feats(aa, mask_rate):
+        def get_lm_feats(aa, masking_pattern):
             
             esmaa = self._af2_idx_to_esm_idx(aa, mask)
-            random_mask = torch.rand(aa.shape, device=device) < mask_rate
-            if masking_pattern is not None:
-                random_mask = random_mask * masking_pattern
+            #random_mask = torch.rand(aa.shape, device=device) < mask_rate
+            #if masking_pattern is not None:
+            #    random_mask = random_mask * masking_pattern
             
             esmaa = self._mask_inputs_to_esm(esmaa, masking_pattern)
+            
             esm_s, lm_output = self._compute_language_model_representations(esmaa, return_contacts=return_contacts)
 
             # Convert esm_s to the precision used by the trunk and
@@ -196,7 +197,7 @@ class ESMFold(nn.Module):
             get_lm_feats,
             aa, residx, mask,
             no_recycles=num_recycles,
-            mask_rate=mask_rate,
+            masking_pattern=masking_pattern,
         )
         # Documenting what we expect:
         structure = {
@@ -265,7 +266,6 @@ class ESMFold(nn.Module):
         num_recycles: T.Optional[int] = None,
         residue_index_offset: T.Optional[int] = 512,
         chain_linker: T.Optional[str] = "G" * 25,
-        mask_rate: float = 0.0,
         return_contacts: bool = False
     ):
         """Runs a forward pass given input sequences.
@@ -306,7 +306,6 @@ class ESMFold(nn.Module):
             residx=residx,
             masking_pattern=masking_pattern,
             num_recycles=num_recycles,
-            mask_rate=mask_rate,
             return_contacts=return_contacts
         )
 
