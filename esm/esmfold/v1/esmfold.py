@@ -119,8 +119,16 @@ class ESMFold(nn.Module):
         return esm_s, res
 
     def _mask_inputs_to_esm(self, esmaa, pattern):
+        print("Shape of aa:", esmaa.shape)
+        print("aa variable", esmaa)
+        
+        pattern = pattern.squeeze(0) # Temp fix
+        print("Input pattern:", pattern)
         new_esmaa = esmaa.clone()
         new_esmaa[pattern == 1] = self.esm_dict.mask_idx
+
+        print("Shape of esmaa after cloning:", new_esmaa.shape)
+        print("Shape of pattern:", pattern.shape)
         return new_esmaa
 
     def forward(
@@ -166,7 +174,7 @@ class ESMFold(nn.Module):
             if masking_pattern is not None:
                 random_mask = random_mask * masking_pattern
             
-            esmaa = self._mask_inputs_to_esm(esmaa, random_mask)
+            esmaa = self._mask_inputs_to_esm(esmaa, masking_pattern)
             esm_s, lm_output = self._compute_language_model_representations(esmaa, return_contacts=return_contacts)
 
             # Convert esm_s to the precision used by the trunk and
